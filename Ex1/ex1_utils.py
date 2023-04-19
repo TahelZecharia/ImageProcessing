@@ -242,22 +242,6 @@ def quantizeImage(imOrig: np.ndarray, nQuant: int, nIter: int) -> (List[np.ndarr
     return qImage, error
 
 
-def isGray(imgOrig: np.ndarray) -> (np.ndarray, bool):
-    """
-    if RGB -> convert to YIQ -> take Y
-    elif GRAY -> Y = imgOrig
-    :param imgOrig:
-    :return: y: graySale img, gray: True ig imgOrig was gray
-    """
-    gray = True
-    if len(imgOrig.shape) == 3:
-        imgYIQ = transformRGB2YIQ(imgOrig)
-        gray = False
-        y = imgYIQ[:, :, 0]
-    else:
-        y = imgOrig
-    return y, gray
-
 if __name__ == '__main__':
 
     print(imReadAndConvert('beach.jpg', 1))
