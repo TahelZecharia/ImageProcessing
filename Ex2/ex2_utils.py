@@ -270,46 +270,93 @@ def bilateral_filter_implement(in_image: np.ndarray, k_size: int, sigma_color: f
 
 if __name__ == '__main__':
 
-    # Creat Laplacian matrix
-    laplacian = np.array([
-        [0, 1, 0],
-        [1, -4, 1],
-        [0, 1, 0]
-    ])
+    def sharp1(img: np.ndarray):
+
+        # Creat Laplacian matrix
+        laplacian_matrix = np.array([
+            [0, -1, 0],
+            [-1, 5, -1],
+            [0, -1, 0]
+        ])
+
+        img = cv2.imread('VDWIW.png', cv2.IMREAD_GRAYSCALE)
+        img = cv2.resize(img, (0, 0), fx=.25, fy=.25)
+        sharp_img = cv2.filter2D(img, -1, laplacian_matrix)
+
+        f, ax = plt.subplots(1, 3)
+        f.suptitle("Sharp")
+        ax[0].set_title("Ori")
+        ax[1].set_title("Laplacian")
+        ax[2].set_title("Sharp")
+        ax[0].imshow(img)
+        ax[1].imshow(laplacian_matrix)
+        ax[2].imshow(sharp_img)
+        plt.show()
 
 
-    img = cv2.imread('VDWIW.png', cv2.IMREAD_GRAYSCALE) / 255
-    img = cv2.resize(img, (0, 0), fx=.25, fy=.25)
-    lap_mat = cv2.filter2D(img, -1, laplacian)
+    def sharp2(img: np.ndarray):
 
-    sharp_mat = img - lap_mat
+        # Creat Laplacian matrix
+        laplacian = np.array([
+            [0, 1, 0],
+            [1, -4, 1],
+            [0, 1, 0]
+        ])
 
-    print(img)
-    print(lap_mat)
-    print(sharp_mat)
+        img = cv2.imread('VDWIW.png', cv2.IMREAD_GRAYSCALE) / 255
+        img = cv2.resize(img, (0, 0), fx=.25, fy=.25)
+        laplacian_matrix = cv2.filter2D(img, -1, laplacian)
+        sharp_img = img - laplacian_matrix
+
+        print(img)
+        print(laplacian_matrix)
+        print(sharp_img)
+
+        sharp_img[sharp_img < 0.0] = 0.0
+        sharp_img[sharp_img > 1.0] = 1.0
+
+        f, ax = plt.subplots(1, 3)
+        f.suptitle("Sharp")
+        ax[0].set_title("Ori")
+        ax[1].set_title("Lap")
+        ax[2].set_title("Sharp")
+        ax[0].imshow(img)
+        ax[1].imshow(laplacian_matrix)
+        ax[2].imshow(sharp_img)
+        plt.show()
+
+        # cv2.imshow('img', img)
+        # cv2.imshow('edge_pad', laplacian_matrix )
+        # cv2.imshow('out_img', sharp_img)
+        # cv2.waitKey()
+        # cv2.destroyAllWindows()
+
+    def sharp1VSsharp2():
+
+        matrix = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
+
+        laplacian_matrix_1 = np.array([
+            [0, -1, 0],
+            [-1, 5, -1],
+            [0, -1, 0]
+        ])
+
+        laplacian_matrix_2 = np.array([
+            [0, 1, 0],
+            [1, -4, 1],
+            [0, 1, 0]
+        ])
+
+        s1 = conv2D(matrix, laplacian_matrix_1)
+        s2 = conv2D(matrix, laplacian_matrix_2)
+        print(s2)
+        s2 = matrix - s2
+
+        print(s1)
+        print(s2)
 
 
-    sharp_mat[sharp_mat < 0.0] = 0.0
-    sharp_mat[sharp_mat > 1.0] = 1.0
-    #
-    # res = (res * 255).astype(np.uint8)
-
-    # cv2.imshow('img', img)
-    # cv2.imshow('edge_pad', lap_mat )
-    # cv2.imshow('out_img', sharp_mat)
-    # cv2.waitKey()
-    # cv2.destroyAllWindows()
-
-    f, ax = plt.subplots(1, 3)
-    f.suptitle("Sharp")
-    ax[0].set_title("Ori")
-    ax[1].set_title("Lap")
-    ax[2].set_title("Sharp")
-    ax[0].imshow(img)
-    ax[1].imshow(lap_mat)
-    ax[2].imshow(sharp_mat)
-    plt.show()
-
+    sharp1VSsharp2()
     matrix = np.array([[1,2,3],[4,5,6],[7,8,9]])
     m = np.array([[1,2],[1,2]])
     print(matrix)
