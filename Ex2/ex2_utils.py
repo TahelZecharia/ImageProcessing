@@ -266,7 +266,48 @@ def bilateral_filter_implement(in_image: np.ndarray, k_size: int, sigma_color: f
     :return: OpenCV implementation, my implementation
     """
 
-    return
+    # OpenCV Bilateral Filter
+    CV2_bilateral = cv2.bilateralFilter(in_image, k_size, sigma_color, sigma_space, borderType=cv2.BORDER_REPLICATE)
+
+    # My Bilateral Filter Implementation
+    image_height, image_width = in_image.shape[:2]
+    my_bilateral = np.zeros((image_height, image_width))
+
+    # Padding size
+    padding = k_size // 2
+
+    # Pad the image using reflection
+    padded_image = np.pad(in_image, padding, mode='reflect')
+
+    # Gaussian kernel for space domain (for Wc)
+    space_kernel = cv2.getGaussianKernel(k_size, sigma_space)
+    space_kernel = space_kernel.dot(space_kernel.T)
+
+    # Apply bilateral filtering
+    for i in range(image_height):
+
+        for j in range(image_width):
+
+            # Extract the neighborhood from the padded image
+            neighborhood = padded_image[i : i + k_size, j : j + k_size]
+
+            # Gaussian kernel for color domain (for Ws)
+            color_kernel = np.exp(- ( (neighborhood - in_image[i, j]) ** 2) / (2 * sigma_color))
+
+            # Combine space and color kernels
+            combined_kernel = space_kernel * color_kernel
+
+            # Normalize the kernel
+            combined_kernel /= np.sum(combined_kernel)
+
+            # Apply the kernel to the neighborhood
+            kernel = combined_kernel * neighborhood
+
+            # Calculation of the sum of kernel values
+            my_bilateral[i, j] = np.sum(kernel)
+
+    return CV2_bilateral, my_bilateral
+
 
 if __name__ == '__main__':
 
