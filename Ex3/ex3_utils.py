@@ -7,7 +7,7 @@ from numpy.linalg import LinAlgError
 import matplotlib.pyplot as plt
 
 
-def myID() -> np.int:
+def myID() -> int:
     """
     Return my ID (not the friend's ID I copied from)
     :return: int
@@ -105,23 +105,95 @@ def warpImages(im1: np.ndarray, im2: np.ndarray, T: np.ndarray) -> np.ndarray:
 
 
 def gaussianPyr(img: np.ndarray, levels: int = 4) -> List[np.ndarray]:
+
     """
     Creates a Gaussian Pyramid
     :param img: Original image
     :param levels: Pyramid depth
     :return: Gaussian pyramid (list of images)
     """
-    pass
+
+    # Create an empty list to store the pyramid levels
+    pyramid = [np.zeros(1)] * levels
+
+    # Generate a 2D Gaussian kernel
+    gaussian_kernel = cv2.getGaussianKernel(5, -1)
+    gaussian_kernel = gaussian_kernel.dot(gaussian_kernel.T)
+    gaussian_kernel = gaussian_kernel / gaussian_kernel.sum()
+
+    # Calculate the power factor and optimal dimensions for the first level of the pyramid
+    pow_fac = np.power(2, levels)
+    image_height, image_width = img.shape[:2]
+    opt_h, opt_w = pow_fac * (image_height // pow_fac), pow_fac * (image_width // pow_fac)
+    pyramid[0] = img[:opt_h, :opt_w]
+
+    # Build the Gaussian pyramid
+    for level in range(1, levels):
+
+        # Convolve the previous level's image with the Gaussian kernel
+        blurred_image = cv2.filter2D(pyramid[level - 1], -1, gaussian_kernel)
+        # Downscale the convolved image by taking every alternate pixel
+        blurred_image = blurred_image[::2, ::2]
+        # Store the downscaled image as the current level of the pyramid
+        pyramid[level] = blurred_image
+
+    return pyramid
+
+def expandImage(img: np.ndarray, gaussian_kernel: np.ndarray) -> np.ndarray:
+    """
+    Expands a Gaussian pyramid level one step up
+    :param img: Pyramid image at a certain level
+    :param gaussian_kernel: The kernel to use in expanding
+    :return: The expanded level
+    """
+
+    image_height, image_width = img.shape[:2]
+    # Determine the number of color channels in the image
+    colors = 1 if img.ndim < 3 else 3
+    # Create an empty array for the expanded image
+    expanded_img = np.zeros((image_height * 2, image_width * 2, colors)).squeeze()
+    # Sample the image by placing the pixels at even positions
+    expanded_img[::2, ::2] = img
+    # Convolve the expanded image with the Gaussian kernel
+    expanded_img = cv2.filter2D(expanded_img, -1, gaussian_kernel)
+
+    return expanded_img
 
 
 def laplaceianReduce(img: np.ndarray, levels: int = 4) -> List[np.ndarray]:
+
     """
     Creates a Laplacian pyramid
     :param img: Original image
     :param levels: Pyramid depth
     :return: Laplacian Pyramid (list of images)
     """
-    pass
+
+    # Generate a 2D Gaussian kernel
+    gaussian_kernel = cv2.getGaussianKernel(5, -1)
+    gaussian_kernel = gaussian_kernel.dot(gaussian_kernel.T)
+    gaussian_kernel = gaussian_kernel / gaussian_kernel.sum()
+    # Multiply the Gaussian kernel by 4 for the padded image
+    gaussian_kernel_norm = gaussian_kernel * 4
+
+    # Generate the Gaussian pyramid of the original image
+    gaussian_pyramid = gaussianPyr(img, levels)
+    # Create an empty list to store the Laplacian pyramid levels
+    laplacian_pyramid = [np.zeros(1)] * levels
+    # Set the highest level of the Laplacian pyramid as the highest level of the Gaussian pyramid
+    laplacian_pyramid[-1] = gaussian_pyramid[-1]
+
+    # Build the Laplacian pyramid
+    for level in range(levels - 1):
+
+        # Get the smaller image from the Gaussian pyramid
+        small_image = gaussian_pyramid[level + 1]
+        # Expand the smaller image to match the size of the next level in the Gaussian pyramid
+        expanded_img = expandImage(small_image, gaussian_kernel_norm)
+        # Compute the difference between the current Gaussian level and the expanded image
+        laplacian_pyramid[level] = gaussian_pyramid[level] - expanded_img
+
+    return laplacian_pyramid
 
 
 def laplaceianExpand(lap_pyr: List[np.ndarray]) -> np.ndarray:
@@ -130,7 +202,25 @@ def laplaceianExpand(lap_pyr: List[np.ndarray]) -> np.ndarray:
     :param lap_pyr: Laplacian Pyramid
     :return: Original image
     """
-    pass
+
+    # Generate a 2D Gaussian kernel
+    gaussian_kernel = cv2.getGaussianKernel(5, -1)
+    gaussian_kernel = gaussian_kernel.dot(gaussian_kernel.T)
+    gaussian_kernel = gaussian_kernel / gaussian_kernel.sum()
+    # Multiply the Gaussian kernel by 4 for the padded image
+    gaussian_kernel_norm = gaussian_kernel * 4
+
+    # Start with the highest level of the Laplacian pyramid
+    rolling_img = lap_pyr[-1]
+
+    # Reconstruct the original image from the Laplacian pyramid
+    for level in range(len(lap_pyr) - 1, 0, -1):
+        # Expand the rolling image using the second Gaussian kernel
+        expanded_img = expandImage(rolling_img, gaussian_kernel_norm)
+        # Add the expanded image to the current level of the Laplacian pyramid
+        rolling_img = expanded_img + lap_pyr[level - 1]
+
+    return rolling_img
 
 
 def pyrBlend(img_1: np.ndarray, img_2: np.ndarray,
@@ -144,4 +234,24 @@ def pyrBlend(img_1: np.ndarray, img_2: np.ndarray,
     :return: (Naive blend, Blended Image)
     """
     pass
+
+if __name__ == '__main__':
+
+    matrix = np.array([[1,2,3],[4,5,6],[7,8,9]])
+
+    gas_ker = cv2.getGaussianKernel(3, -1) * 4
+    sigma = 0.3 * ((5 - 1) * 0.5 - 1) + 0.8
+    ker = cv2.getGaussianKernel(5, sigma)
+    gas_ker = gas_ker
+    print(gas_ker)
+    print(ker)
+    gas_ker = gas_ker.dot(gas_ker.T)
+    print(gas_ker)
+    print(gas_ker.sum())
+    gas_ker = gas_ker / gas_ker.sum()
+    print(gas_ker)
+    print(gas_ker.sum())
+
+    for lv in range(5 - 1, 0, -1):
+        print(lv)
 
