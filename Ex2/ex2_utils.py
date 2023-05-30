@@ -71,6 +71,8 @@ def conv2D(in_image: np.ndarray, kernel: np.ndarray) -> np.ndarray:
     # Flip the kernel
     flipped_kernel = np.flip(np.flip(kernel, axis=0), axis=1)
 
+    # flipped_kernel = kernel
+
     # Perform 2D convolution
     for i in range(image_height):
         for j in range(image_width):
@@ -243,6 +245,7 @@ def edgeDetectionZeroCrossingLOG(img: np.ndarray) -> np.ndarray:
 
 
 def houghCircle(img: np.ndarray, min_radius: int, max_radius: int) -> list:
+
     """
     Find Circles in an image using a Hough Transform algorithm extension
     To find Edges you can Use OpenCV function: cv2.Canny
@@ -253,7 +256,91 @@ def houghCircle(img: np.ndarray, min_radius: int, max_radius: int) -> list:
                 [(x,y,radius),(x,y,radius),...]
     """
 
-    return
+    img = img.squeeze()
+
+    if img.ndim > 2:
+        raise ValueError("The image is not grayscale")
+
+    image_height, image_width = img.shape
+
+    max_radius = min((min(image_height, image_width) // 2), max_radius)
+
+    # Get each pixels gradients direction
+    i_y = cv2.Sobel(img, -1, 0, 1, ksize=3)
+    i_x = cv2.Sobel(img, -1, 1, 0, ksize=3)
+    ori = np.arctan2(i_y, i_x)
+
+    # Get Edges using Canny Edge detector
+    bw = cv2.Canny((img * 255).astype(np.uint8), 550, 100)
+    radius_diff = max_radius - min_radius
+    circle_hist = np.zeros((image_height, image_width, radius_diff))
+
+    # Get the coordinates only for the edges
+    ys, xs = np.where(bw)
+
+    # Calculate the sin/cos for each edge pixel
+    sins = np.sin(ori[ys, xs])
+    coss = np.cos(ori[ys, xs])
+    r_range = np.arange(min_radius, max_radius)
+
+    for iy, ix, ss, cs in zip(ys, xs, sins, coss):
+
+        grad_sin = (r_range * ss).astype(int)
+        grad_cos = (r_range * cs).astype(int)
+
+        xc_1 = ix + grad_cos
+        yc_1 = iy + grad_sin
+
+        xc_2 = ix - grad_cos
+        yc_2 = iy - grad_sin
+
+        # Check where are the centers that are in the image
+        r_idx1 = np.logical_and(yc_1 > 0, xc_1 > 0)
+        r_idx1 = np.logical_and(r_idx1, np.logical_and(yc_1 < image_height, xc_1 < image_width))
+
+        # Check where are the centers that are in the image (Opposite direction)
+        r_idx2 = np.logical_and(yc_2 > 0, xc_2 > 0)
+        r_idx2 = np.logical_and(r_idx2, np.logical_and(yc_2 < image_height, xc_2 < image_width))
+
+        # Add circles to the circle histogram
+        circle_hist[yc_1[r_idx1], xc_1[r_idx1], r_idx1] += 1
+        circle_hist[yc_2[r_idx2], xc_2[r_idx2], r_idx2] += 1
+
+    # Find all the circles centers
+    y, x, r = np.where(circle_hist > 11)
+    circles = np.array([x, y, r + min_radius, circle_hist[y, x, r]]).T
+
+    # Perform NMS
+    circles = nms(circles, min_radius // 2)
+    return circles
+
+
+def nms(xyr: np.ndarray, radius: int) -> list:
+    """
+    Performs Non Maximum Suppression in order to remove circles that are close
+    to each other to get a "clean" output.
+    :param xyr:
+    :param radius:
+    :return:
+    """
+
+    ret_xyr = []
+
+    while len(xyr) > 0:
+        # Choose most ranked circle (MRC)
+        curr_arg = xyr[:, -1].argmax()
+        curr = xyr[curr_arg, :]
+        ret_xyr.append(curr)
+        xyr = np.delete(xyr, curr_arg, axis=0)
+
+        # Find MRC close neighbors
+        dists = np.sqrt(np.square(xyr[:, :2] - curr[:2]).sum(axis=1)) < radius
+        idx_to_delete = np.where(dists)
+
+        # Delete MRCs neighbors
+        xyr = np.delete(xyr, idx_to_delete, axis=0)
+
+    return ret_xyr
 
 
 def bilateral_filter_implement(in_image: np.ndarray, k_size: int, sigma_color: float, sigma_space: float) -> (
@@ -412,3 +499,7 @@ if __name__ == '__main__':
     print("padded_mat: " ,padded_mat )
     padded_matrix = np.pad(matrix, ((2, 1), (3,4)), 'reflect')
     print("padded_matrix: ", padded_matrix)
+
+    kernel = np.array([1, 2, 3])
+    inv_k = kernel[::-1]
+    print("inv_k: ", inv_k)
