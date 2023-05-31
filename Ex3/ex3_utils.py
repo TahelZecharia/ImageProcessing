@@ -12,7 +12,7 @@ def myID() -> int:
     Return my ID (not the friend's ID I copied from)
     :return: int
     """
-    return 100
+    return 211485461
 
 # ---------------------------------------------------------------------------
 # ------------------------ Lucas Kanade optical flow ------------------------
@@ -233,7 +233,50 @@ def pyrBlend(img_1: np.ndarray, img_2: np.ndarray,
     :param levels: Pyramid depth
     :return: (Naive blend, Blended Image)
     """
-    pass
+
+    # Check if the input images and mask have the same shape
+    assert (img_1.shape == img_2.shape)
+    assert (img_1.shape[:2] == mask.shape[:2])
+
+    # Create a 5x5 Gaussian kernel
+    gaussian_kernel = cv2.getGaussianKernel(5, -1)
+    gaussian_kernel = gaussian_kernel.dot(gaussian_kernel.T)
+    gaussian_kernel = gaussian_kernel / gaussian_kernel.sum()
+    # Create a 5x5 Gaussian kernel multiplied by 4
+    gaussian_kernel_norm = gaussian_kernel * 4
+
+    # Naive blend: element-wise multiplication of image 1 with the mask, and element-wise multiplication of
+    # complement of the mask with image 2
+    naive_blend = (img_1 * mask) + (1 - mask) * img_2
+
+    # Reduce the resolution of the images using Laplacian pyramid
+    laplacian_pyramid_image1 = laplaceianReduce(img_1, levels)
+    laplacian_pyramid_image2 = laplaceianReduce(img_2, levels)
+
+    # Generate a Gaussian pyramid for the mask
+    gaussian_pyramid_mask = gaussianPyr(mask, levels)
+
+    # Blend the smallest images in the Laplacian pyramid images (the gaussian image) using the mask pyramid
+    pyramid_blend = laplacian_pyramid_image1[-1] * gaussian_pyramid_mask[-1] + (1 - gaussian_pyramid_mask[-1]) * laplacian_pyramid_image2[-1]
+
+    # Blend the remaining levels of the Laplacian pyramid
+    for level in range(levels - 1, 0, -1):
+
+        # Expand the blended image using a 5x5 Gaussian kernel multiplied by 4
+        expanded_image = expandImage(pyramid_blend, gaussian_kernel_norm)
+
+        # Get the mask and Laplacian images for the current level
+        mask = gaussian_pyramid_mask[level - 1]
+        laplacian_image1 = laplacian_pyramid_image1[level - 1]
+        laplacian_image2 = laplacian_pyramid_image2[level - 1]
+
+        # Blend the expanded images using the mask
+        blended_image = laplacian_image1 * mask + laplacian_image2 * (1 - mask)
+
+        # Blend the expanded image with the previously blended image
+        pyramid_blend = blended_image + expanded_image
+
+    return naive_blend, pyramid_blend
 
 if __name__ == '__main__':
 
