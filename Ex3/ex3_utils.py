@@ -29,7 +29,47 @@ def opticalFlow(im1: np.ndarray, im2: np.ndarray, step_size=10,
     :param win_size: The optical flow window size (odd number)
     :return: Original points [[x,y]...], [[dU,dV]...] for each points
     """
-    pass
+
+    points = []
+    flows = []  # uv
+
+    height, width = im1.shape
+    window = win_size // 2
+
+    # Compute gradients Ix and Iy
+    kernel = np.array([[-1, 0, 1]])
+    Ix = cv2.filter2D(im2, -1, kernel, borderType=cv2.BORDER_REPLICATE)
+    Iy = cv2.filter2D(im2, -1, kernel.T, borderType=cv2.BORDER_REPLICATE)
+    It = im2 - im1
+
+
+    for y in range(window, height - window, step_size):
+        for x in range(window, width - window, step_size):
+
+            # Compute the sums of derivatives products within the window
+            Ix_window = Ix[y - window : y + window + 1, x - window : x + window + 1].flatten()
+            Iy_window = Iy[y - window : y + window + 1, x - window : x + window + 1].flatten()
+            It_window = It[y - window : y + window + 1, x - window : x + window + 1].flatten()
+
+            ATA = [[(Ix_window * Ix_window).sum(), (Ix_window * Iy_window).sum()],
+                    [(Ix_window * Iy_window).sum(), (Iy_window * Iy_window).sum()]]
+
+            lambada = np.linalg.eigvals(ATA)
+            lambada1 = np.max(lambada)
+            lambada2 = np.min(lambada)
+
+            if lambada1 >= lambada2 > 1 and (lambada1 / lambada2) < 100:
+
+                ATb = [[-(Ix_window * It_window).sum()], [-(Iy_window * It_window).sum()]]
+                flow = (np.dot(np.linalg.inv(ATA), ATb)).reshape(2)
+                points.append([x, y])
+                flows.append(flow)
+
+            else:
+                points.append([x, y])
+                flows.append(np.array([0., 0.]))
+
+    return np.array(points), np.array(flows)
 
 
 def opticalFlowPyrLK(img1: np.ndarray, img2: np.ndarray, k: int,
@@ -42,8 +82,35 @@ def opticalFlowPyrLK(img1: np.ndarray, img2: np.ndarray, k: int,
     :param winSize: The optical flow window size (odd number)
     :return: A 3d array, with a shape of (m, n, 2),
     where the first channel holds U, and the second V.
+    Ui = Ui + 2 ∗ Ui−1, Vi = Vi + 2 ∗ Vi−1
     """
-    pass
+
+    # Create image pyramids
+    pyramid1 = gaussianPyr(img1, k)
+    pyramid2 = gaussianPyr(img2, k)
+
+    # Initialize flow at the lowest pyramid level
+    height, width = pyramid1[k - 1].shape
+    _, flow = opticalFlow(pyramid1[- 1], pyramid2[- 1], stepSize, winSize)
+    flow = flow.reshape(height // stepSize, width // stepSize, 2)
+
+    for i in range(k - 2, -1, -1):
+
+        expand = np.zeros((flow.shape[0] * 2, flow.shape[1] * 2, 2))
+        expand[::2, ::2] = flow * 2
+        flow = expand
+
+        current_img1 = pyramid1[i]
+        current_img2 = pyramid2[i]
+
+        _, current_flow = opticalFlow(current_img1, current_img2, stepSize, winSize)
+        height, width = current_img1.shape
+        # Compute optical flow at the current level
+        flow = flow.reshape(height // stepSize, width // stepSize, 2)
+        # Add the current optical flow to the upscaled flow
+        flow += current_flow.reshape(height // stepSize, width // stepSize, 2)
+
+    return flow
 
 
 # ---------------------------------------------------------------------------
@@ -139,7 +206,9 @@ def gaussianPyr(img: np.ndarray, levels: int = 4) -> List[np.ndarray]:
 
     return pyramid
 
+
 def expandImage(img: np.ndarray, gaussian_kernel: np.ndarray) -> np.ndarray:
+
     """
     Expands a Gaussian pyramid level one step up
     :param img: Pyramid image at a certain level
@@ -197,6 +266,7 @@ def laplaceianReduce(img: np.ndarray, levels: int = 4) -> List[np.ndarray]:
 
 
 def laplaceianExpand(lap_pyr: List[np.ndarray]) -> np.ndarray:
+
     """
     Restores the original image from a laplacian pyramid
     :param lap_pyr: Laplacian Pyramid
