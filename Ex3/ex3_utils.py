@@ -4,6 +4,7 @@ from typing import List
 import numpy as np
 import cv2
 from numpy.linalg import LinAlgError
+from scipy.linalg import lstsq
 import matplotlib.pyplot as plt
 
 
@@ -117,6 +118,50 @@ def opticalFlowPyrLK(img1: np.ndarray, img2: np.ndarray, k: int,
 # ------------------------ Image Alignment & Warping ------------------------
 # ---------------------------------------------------------------------------
 
+def findRotation(im1, im2):
+
+    dif = float("inf")
+    theta = 0
+
+    for angle in range(360):
+
+        rotation_mat = np.array([[np.cos(angle), -np.sin(angle), 0],
+                          [np.sin(angle), np.cos(angle), 0],
+                          [0, 0, 1]], dtype=np.float)
+
+        test = cv2.warpPerspective(im1, rotation_mat, im1.shape[::-1])
+        mse = np.square(np.subtract(im2, test)).mean()
+        if mse < dif:
+            dif = mse
+            theta = angle
+
+    rotation = np.array([[np.cos(theta), -np.sin(theta), 0],
+              [np.sin(theta), np.cos(theta), 0],
+              [0, 0, 1]], dtype=np.float)
+
+    return rotation
+
+
+def leastSquaresTranslation(uv: np.ndarray):
+
+    b = uv.flatten()
+
+    A = np.zeros((len(b), 2))
+    A[1::2] = [0, 1]
+    A[0::2] = [1, 0]
+
+    x, _, _, _ = lstsq(A, b)
+
+    # Extract the translation parameters
+    dX, dY = x[:2]
+
+    # Create the translation matrix
+    translation_matrix = np.array([[1, 0, dX],
+                                   [0, 1, dY],
+                                   [0, 0, 1]])
+
+    return translation_matrix
+
 
 def findTranslationLK(im1: np.ndarray, im2: np.ndarray) -> np.ndarray:
     """
@@ -124,7 +169,9 @@ def findTranslationLK(im1: np.ndarray, im2: np.ndarray) -> np.ndarray:
     :param im2: image 1 after Translation.
     :return: Translation matrix by LK.
     """
-    pass
+    points, uv = opticalFlow(im1, im2)  # get uv by LK
+
+    return leastSquaresTranslation(uv)
 
 
 def findRigidLK(im1: np.ndarray, im2: np.ndarray) -> np.ndarray:
@@ -133,7 +180,14 @@ def findRigidLK(im1: np.ndarray, im2: np.ndarray) -> np.ndarray:
     :param im2: image 1 after Rigid.
     :return: Rigid matrix by LK.
     """
-    pass
+
+    points, uv = opticalFlow(im1, im2)  # get uv by LK
+
+    translation_mat = leastSquaresTranslation(uv)
+
+    rotation_mat = findRotation(im1, im2)
+
+    return np.dot(translation_mat, rotation_mat)
 
 
 def findTranslationCorr(im1: np.ndarray, im2: np.ndarray) -> np.ndarray:
@@ -351,6 +405,7 @@ def pyrBlend(img_1: np.ndarray, img_2: np.ndarray,
 if __name__ == '__main__':
 
     matrix = np.array([[1,2,3],[4,5,6],[7,8,9]])
+    print(matrix.flatten())
 
     gas_ker = cv2.getGaussianKernel(3, -1) * 4
     sigma = 0.3 * ((5 - 1) * 0.5 - 1) + 0.8
@@ -367,4 +422,10 @@ if __name__ == '__main__':
 
     for lv in range(5 - 1, 0, -1):
         print(lv)
+
+    matrix = np.zeros((6, 2))
+    matrix[1::2] = [0, 1]
+    matrix[0::2] = [1, 0]
+    print(matrix)
+
 
